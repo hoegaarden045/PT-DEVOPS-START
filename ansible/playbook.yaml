@@ -1,0 +1,74 @@
+
+---
+- name: Install default Postgresql
+  hosts: ansible
+  become: yes
+  
+  tasks:
+    - name: Updating the package list
+      apt:
+        update_cache: yes
+
+    - name: Installing the required packages
+      apt:
+        name:
+          - wget
+          - ca-certificates
+          - curl
+          - python3-psycopg2
+        state: present
+
+    - name: Downloading and adding a PostgreSQL PGP key
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
+
+    - name: Adding the PostgreSQL repository to sources.list.d
+      lineinfile:
+        path: /etc/apt/sources.list.d/pgdg.list
+        line: "deb https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+        create: yes
+
+    - name: Updating the package list
+      apt:
+        update_cache: yes
+
+    - name: Install PostgreSQL
+      apt:
+        name: "postgresql-16"
+        state: present
+
+    - name: Enabling the PostgreSQL service
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Setting up a password for a postgres user
+      become_user: postgres
+      postgresql_user:
+        name: "{{ DB_USER }}"
+        password: "{{ DB_USER_PASSWORD }}"
+
+    - name: Changing listen_addresses to '*'
+      community.postgresql.postgresql_set:
+        name: listen_addresses
+        value: '*'
+      become_user: postgres
+
+    - name: Adding access for all users with a password
+      community.postgresql.postgresql_pg_hba:
+        dest: /etc/postgresql/16/main/pg_hba.conf  
+        contype: host
+        databases: all
+        users: all
+        source: 0.0.0.0/0
+        method: md5
+        state: present  
+      become_user: postgres
+
+    - name: Restarting the PostgreSQL service
+      service:
+        name: postgresql
+        state: restarted
+
